@@ -1,13 +1,12 @@
 
-
 # # sustainability_nlp_pipeline
-
 
 import re
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from nltk.tokenize import word_tokenize
 from nltk.stem import PorterStemmer
 from nltk.tokenize import TreebankWordTokenizer
+from nltk.tokenize import RegexpTokenizer
 from nltk.corpus import stopwords
 import string
 
@@ -24,9 +23,36 @@ stop_words = stopwords.words('english')
 
 #Add additional stop words in here:
 
-additional_stop_words = ['RT', 'rt', "’"]
+additional_stop_words = ['RT', 'rt', "’",'retweet' "sustainability", "sustainable", "sustainabl", "sustain"]
 
 total_stop_words = stop_words + additional_stop_words
+
+'''
+
+Tweet Tokenizer Adapted from :  https://github.com/adonoho/TweetTokenizers/blob/master/PottsTweetTokenizer.py
+   
+This Tokenizer preserves Twitter language including:  usernames, hashtags, symbols html, etc.
+
+'''
+
+regex_code = (
+
+    r"""(?:<[^>]+>)""",                             # HTML tags
+    r"""(?:http[s]?://t.co/[a-zA-Z0-9]+)""",        # URLs 
+    r"""(?:http[s]\S+?)""",                         # URLs
+    r"""(?:@[\w_]+)""",                             # Twitter username
+    r"""(?:\#+[\w_]+[\w\'_\-]*[\w_]+)""",           # Twitter hashtags
+    r"""(?:\$[a-zA-Z]{1,6}([._][a-zA-Z]{1,2})?)""", # Twitter symbols / cashtags
+    r"""(?:[a-z][a-z'\-_]+[a-z])""",                # Words with apostrophes or dashes
+    r"""(?:[+\-]?\d+[,/.:-]\d+[+\-]?)""",           # Numbers, including fractions, decimals
+    r"""(?:[\w_]+)""",                              # Words without apostrophes or dashes
+    r"""(?:\.(?:\s*\.){1,})"""                      # Ellipsis
+    )
+
+regex_pattern = re.compile(r"""(%s)"""%"| ".join(regex_code))#, re.VERBOSE | re.I | re.UNICODE)
+
+regex_tokenizer = RegexpTokenizer(pattern=regex_pattern.pattern,gaps=True, discard_empty = True)
+
 
 class nlp_pipeline:
     '''
@@ -88,19 +114,20 @@ class nlp_pipeline:
         return cleaned_text
     
     
-    def fit_vectorizer(self, text):
+    def fit_vectorizer(self, mongo_cursor):
         
         '''
         
         Runs cleaning function and then fits the vectorizer.
         
         '''
-        
-        clean_text = self.cleaning_function(text, self.tokenizer, self.stemmer)
+        clean_text = []
+        for post in mongo_cursor:
+            clean_text.append(self.cleaning_function(post, self.tokenizer, self.stemmer))
         self.vectorizer.fit(clean_text)
         self._fit_check = True  #returns True if vectorizer has been fit
     
-    def transform_vectorizer(self, text):
+    def transform_vectorizer(self, mongo_cursor):
         
         '''
         
@@ -110,8 +137,9 @@ class nlp_pipeline:
         
         if not self._fit_check:
             raise ValueError("Go back and fit model before transforming!")
-            
-        clean_text = self.cleaning_function(text, self.tokenizer, self.stemmer)
+        clean_text = []
+        for post in mongo_cursor:    
+            clean_text.append(self.cleaning_function(post, self.tokenizer, self.stemmer))
         return self.vectorizer.transform(clean_text)
 
     def get_features(self):
@@ -128,21 +156,22 @@ class nlp_pipeline:
 
 def cleaned_text(my_text, tokenizer, stemmer):
     
-    tokenizer = word_tokenize
-    
+#   tokenizer = word_tokenize
+#   print(my_text)
     words = re.sub(r"http\S+", "", my_text)                                   #remove hyperlinks
-#   words = re.sub(r"@[\w_]+","",words)                                       #remove Twitter username (kept for now)
-    words = re.sub('[%s]'% re.escape(string.punctuation), '', words).lower()  #remove punctuation & lowercase
+    words = re.sub(r"@[\w_]+","",words)                                       #remove Twitter username (kept for now)
+    words = re.sub('[%s]'% re.escape(string.punctuation), '', words)          #remove punctuation & lowercase
+    words = ''.join([i for i in words if not i.isdigit()])                    #remove numbers
     words = word_tokenize(words)                                              #Tokenize words    
-#   words = regex_tokenizer.tokenize(words)                                   #Twitter specific tokenizer (turned off)
+   # words = regex_tokenizer.tokenize(words)                                  #Twitter specific tokenizer (turned off)
 
     cleaned_words = []
     
     for word in words:
+   
+        if word.lower().replace(' ','') not in total_stop_words:
+#            word = stemmer.stem(word.lower())
+            cleaned_words.append(word.lower())
     
-        if word not in total_stop_words:
-            word = stemmer.stem(word)
-            cleaned_words.append(word)
-    
-    return cleaned_words
+    return ' '.join(cleaned_words)
 
