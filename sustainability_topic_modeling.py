@@ -211,7 +211,7 @@ nmf_clusters = km.fit_predict(nmf_cv_data)
 
 #Silhouette Plot
 
-visualiser = SilhouetteVisualizer(KMeans(n_clusters=16))
+visualiser = SilhouetteVisualizer(MiniBatchKMeans(n_clusters=16))
 visualiser.fit(nmf_cv_data)
 visualiser.poof()
 
@@ -262,7 +262,7 @@ nmf_tfidf_clusters2 = km_tfidf.fit_predict(nmf_tfidf_data)
 
 #Silhouette Plot
 
-visualiser_tfidf = SilhouetteVisualizer(KMeans(n_clusters=16))
+visualiser_tfidf = SilhouetteVisualizer(MiniBatchKMeans(n_clusters=16), random_state = 4444)
 visualiser_tfidf.fit(nmf_tfidf_data)
 visualiser_tfidf.poof()
 
